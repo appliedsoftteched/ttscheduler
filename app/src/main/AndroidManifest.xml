@@ -1,0 +1,23 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android"
+    package="com.example.schedule">
+
+    <!-- ✅ Required for Android 13+ -->
+    <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+
+    <application
+        android:label="TTS Scheduler"
+        android:theme="@style/Theme.MaterialComponents.DayNight">
+
+        <activity android:name=".ScheduleListActivity" />
+
+        <activity
+            android:name=".MainActivity"
+            android:exported="true"> <!-- ✅ Required since it has intent-filter -->
+            <intent-filter>
+                <action android:name="android.intent.action.MAIN" />
+                <category android:name="android.intent.category.LAUNCHER" />
+            </intent-filter>
+        </activity>
+
+    </application>
+</manifest>
