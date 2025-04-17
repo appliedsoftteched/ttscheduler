@@ -1,0 +1,57 @@
+<ScrollView xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent">
+
+    <LinearLayout
+        android:orientation="vertical"
+        android:padding="16dp"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content">
+
+        <TextView
+            android:id="@+id/editId"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="ID"
+            android:textStyle="bold"
+            android:textSize="16sp"
+            android:paddingBottom="8dp"/>
+
+        <EditText
+            android:id="@+id/editMessage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Message" />
+
+        <EditText
+            android:id="@+id/editTime"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Time (e.g. 9:30 AM)" />
+
+        <EditText
+            android:id="@+id/editDays"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Days (comma-separated)" />
+
+        <EditText
+            android:id="@+id/editRepeat"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Repeat (daily/weekly)" />
+
+        <EditText
+            android:id="@+id/editLanguage"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:hint="Language (english/hindi)" />
+
+        <Button
+            android:id="@+id/btnSave"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:text="Save"
+            android:layout_marginTop="16dp"/>
+    </LinearLayout>
+</ScrollView>

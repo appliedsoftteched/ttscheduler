@@ -1,12 +1,77 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:id="@+id/main_root"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
     android:orientation="vertical"
-    android:gravity="center"
+    android:background="#F1F5F9"
     android:padding="24dp">
-    <Button
-        android:id="@+id/uploadButton"
+
+    <!-- App Icon -->
+    <ImageView
+        android:id="@+id/icon"
+        android:layout_width="96dp"
+        android:layout_height="96dp"
+        android:layout_gravity="center_horizontal"
+        android:src="@mipmap/tts_schedule"
+        app:tint="#546E7A"
+        android:layout_marginTop="48dp" />
+
+    <!-- Title -->
+    <TextView
+        android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="Upload JSON Config"/>
+        android:text="TTS Scheduler"
+        android:textSize="22sp"
+        android:textStyle="bold"
+        android:textColor="#37474F"
+        android:layout_gravity="center_horizontal"
+        android:layout_marginTop="12dp" />
+
+    <!-- Subtitle -->
+    <TextView
+        android:id="@+id/tvSubtitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="Upload a JSON file to schedule text-to-speech reminders."
+        android:textSize="15sp"
+        android:textColor="#607D8B"
+        android:gravity="center"
+        android:layout_marginTop="8dp"
+        android:layout_marginBottom="32dp" />
+
+    <!-- Spacer to push buttons to bottom -->
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1" />
+
+    <!-- Button Row -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:gravity="center">
+
+        <Button
+            android:id="@+id/uploadButton"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Upload"
+            android:backgroundTint="#C8E6C9"
+            android:textColor="#2E7D32"
+            android:layout_marginEnd="8dp" />
+
+        <Button
+            android:id="@+id/btn_skip"
+            android:layout_width="0dp"
+            android:layout_height="wrap_content"
+            android:layout_weight="1"
+            android:text="Skip"
+            android:backgroundTint="#FFF8E1"
+            android:textColor="#EF6C00"
+            android:visibility="gone" />
+    </LinearLayout>
 </LinearLayout>

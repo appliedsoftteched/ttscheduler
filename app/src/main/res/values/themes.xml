@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources xmlns:tools="http://schemas.android.com/tools">
+
+    <!-- Base app theme -->
+    <style name="Theme.TTSScheduler" parent="Theme.MaterialComponents.DayNight.NoActionBar">
+        <!-- Customize your theme here -->
+        <item name="colorPrimary">#546E7A</item>
+        <item name="colorPrimaryVariant">#455A64</item>
+        <item name="colorOnPrimary">#FFFFFF</item>
+        <item name="colorSecondary">#FFB300</item>
+        <item name="android:windowBackground">#F1F5F9</item>
+        <item name="android:colorBackground">#F1F5F9</item>
+    </style>
+
+</resources>

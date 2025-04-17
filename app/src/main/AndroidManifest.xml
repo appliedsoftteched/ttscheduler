@@ -3,12 +3,14 @@
 
     <!-- ✅ Required for Android 13+ -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
-
     <application
         android:label="TTS Scheduler"
-        android:theme="@style/Theme.MaterialComponents.DayNight">
+        android:icon="@mipmap/tts_schedule"
+        android:roundIcon="@mipmap/tts_schedule"
+        android:theme="@style/Theme.TTSScheduler">
 
         <activity android:name=".ScheduleListActivity" />
+        <activity android:name=".EditScheduleActivity" />
 
         <activity
             android:name=".MainActivity"

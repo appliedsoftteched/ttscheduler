@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
 import android.os.Looper;
@@ -53,67 +54,185 @@ public class ScheduleWorker extends Worker {
     public Result doWork() {
         String message = getInputData().getString("message");
         String language = getInputData().getString("language");
+        String repeat = getInputData().getString("repeat");
 
         Log.i("ScheduleWorker", "🚀 doWork triggered for: " + message + " | language = " + language);
 
-        sendNotification(message); // Your existing notification method
+        sendNotification(message);
 
-        // Safeguard for empty message
         if (message == null || message.trim().isEmpty()) {
             Log.e("ScheduleWorker", "❌ Message is empty or null — skipping TTS");
             return Result.success();
         }
 
-        // Use array to allow mutation inside lambda
-        final TextToSpeech[] tts = new TextToSpeech[1];
-
         new Handler(Looper.getMainLooper()).post(() -> {
+            AudioManager audioManager = (AudioManager) getApplicationContext().getSystemService(Context.AUDIO_SERVICE);
+            int originalVolume = audioManager.getStreamVolume(AudioManager.STREAM_MUSIC);
+            int maxVolume = audioManager.getStreamMaxVolume(AudioManager.STREAM_MUSIC);
+
+            // 🔊 Max volume
+            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, maxVolume, 0);
+
+            final TextToSpeech[] tts = new TextToSpeech[1];
+
             tts[0] = new TextToSpeech(getApplicationContext(), status -> {
                 if (status == TextToSpeech.SUCCESS) {
-                    int result;
-                    if ("hindi".equalsIgnoreCase(language)) {
-                        result = tts[0].setLanguage(new Locale("hi", "IN"));
-                    } else {
-                        result = tts[0].setLanguage(Locale.ENGLISH);
-                    }
+                    int result = "hindi".equalsIgnoreCase(language)
+                            ? tts[0].setLanguage(new Locale("hi", "IN"))
+                            : tts[0].setLanguage(Locale.ENGLISH);
 
                     if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
-                        Log.e("ScheduleWorker", "❌ TTS language not supported for: " + language);
+                        Log.e("ScheduleWorker", "❌ TTS language not supported: " + language);
                         Toast.makeText(getApplicationContext(), "TTS language not supported", Toast.LENGTH_SHORT).show();
                         return;
                     }
 
-                    // Attach TTS listener for logs
+                    String utteranceId = "TTS_" + System.currentTimeMillis();
+
                     tts[0].setOnUtteranceProgressListener(new UtteranceProgressListener() {
                         @Override
                         public void onStart(String utteranceId) {
-                            Log.d("TTS", "🔊 TTS started: " + utteranceId);
+                            Log.d("TTS", "🗣️ Started: " + utteranceId);
                         }
 
                         @Override
                         public void onDone(String utteranceId) {
-                            Log.d("TTS", "✅ TTS done: " + utteranceId);
+                            Log.d("TTS", "✅ Done: " + utteranceId);
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalVolume, 0);
+                            tts[0].shutdown();
                         }
 
                         @Override
                         public void onError(String utteranceId) {
-                            Log.e("TTS", "❌ TTS error: " + utteranceId);
+                            Log.e("TTS", "❌ Error: " + utteranceId);
+                            audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalVolume, 0);
+                            tts[0].shutdown();
                         }
                     });
 
-                    Log.d("ScheduleWorker", "✅ Speaking: " + message);
-                    tts[0].speak(message, TextToSpeech.QUEUE_FLUSH, null, "SCHEDULE_TTS_UTTERANCE");
+                    Log.d("ScheduleWorker", "🔊 Speaking: " + message);
+                    tts[0].speak(message, TextToSpeech.QUEUE_FLUSH, null, utteranceId);
 
-                    Toast.makeText(getApplicationContext(), "✅ TTS triggered: " + message, Toast.LENGTH_LONG).show();
+                    Toast.makeText(getApplicationContext(), "✅ TTS triggered: " + message, Toast.LENGTH_SHORT).show();
                 } else {
                     Log.e("ScheduleWorker", "❌ TTS initialization failed");
-                    Toast.makeText(getApplicationContext(), "TTS initialization failed", Toast.LENGTH_SHORT).show();
+                    Toast.makeText(getApplicationContext(), "TTS init failed", Toast.LENGTH_SHORT).show();
+                    audioManager.setStreamVolume(AudioManager.STREAM_MUSIC, originalVolume, 0);
                 }
             });
         });
 
+        // 🔁 Repeat scheduling
+        if (repeat != null) {
+            ScheduleItem repeatItem = new ScheduleItem();
+            repeatItem.message = message;
+            repeatItem.language = language;
+            repeatItem.enabled = true;
+            repeatItem.repeat = repeat;
+
+            long delayMillis = "daily".equalsIgnoreCase(repeat)
+                    ? TimeUnit.DAYS.toMillis(1)
+                    : "weekly".equalsIgnoreCase(repeat)
+                    ? TimeUnit.DAYS.toMillis(7)
+                    : 0;
+
+            if (delayMillis > 0) {
+                Log.d("ScheduleWorker", "🔁 Re-scheduling repeat task in " + (delayMillis / 60000) + " min");
+                ScheduleWorker.scheduleItem(getApplicationContext(), repeatItem, delayMillis);
+            }
+        }
+
         return Result.success();
     }
+
+//    @NonNull
+//    @Override
+//    public Result doWork() {
+//        String message = getInputData().getString("message");
+//        String language = getInputData().getString("language");
+//        String repeat = getInputData().getString("repeat");
+//
+//        Log.i("ScheduleWorker", "🚀 doWork triggered for: " + message + " | language = " + language);
+//
+//        sendNotification(message); // Your existing notification method
+//
+//        // Safeguard for empty message
+//        if (message == null || message.trim().isEmpty()) {
+//            Log.e("ScheduleWorker", "❌ Message is empty or null — skipping TTS");
+//            return Result.success();
+//        }
+//
+//        // Use array to allow mutation inside lambda
+//        final TextToSpeech[] tts = new TextToSpeech[1];
+//
+//        new Handler(Looper.getMainLooper()).post(() -> {
+//            tts[0] = new TextToSpeech(getApplicationContext(), status -> {
+//                if (status == TextToSpeech.SUCCESS) {
+//                    int result;
+//                    if ("hindi".equalsIgnoreCase(language)) {
+//                        result = tts[0].setLanguage(new Locale("hi", "IN"));
+//                    } else {
+//                        result = tts[0].setLanguage(Locale.ENGLISH);
+//                    }
+//
+//                    if (result == TextToSpeech.LANG_MISSING_DATA || result == TextToSpeech.LANG_NOT_SUPPORTED) {
+//                        Log.e("ScheduleWorker", "❌ TTS language not supported for: " + language);
+//                        Toast.makeText(getApplicationContext(), "TTS language not supported", Toast.LENGTH_SHORT).show();
+//                        return;
+//                    }
+//
+//                    // Attach TTS listener for logs
+//                    tts[0].setOnUtteranceProgressListener(new UtteranceProgressListener() {
+//                        @Override
+//                        public void onStart(String utteranceId) {
+//                            Log.d("TTS", "🔊 TTS started: " + utteranceId);
+//                        }
+//
+//                        @Override
+//                        public void onDone(String utteranceId) {
+//                            Log.d("TTS", "✅ TTS done: " + utteranceId);
+//                        }
+//
+//                        @Override
+//                        public void onError(String utteranceId) {
+//                            Log.e("TTS", "❌ TTS error: " + utteranceId);
+//                        }
+//                    });
+//
+//                    Log.d("ScheduleWorker", "✅ Speaking: " + message);
+//                    tts[0].speak(message, TextToSpeech.QUEUE_FLUSH, null, "SCHEDULE_TTS_UTTERANCE");
+//
+//                    Toast.makeText(getApplicationContext(), "✅ TTS triggered: " + message, Toast.LENGTH_LONG).show();
+//                } else {
+//                    Log.e("ScheduleWorker", "❌ TTS initialization failed");
+//                    Toast.makeText(getApplicationContext(), "TTS initialization failed", Toast.LENGTH_SHORT).show();
+//                }
+//            });
+//        });
+//
+//        // Self-rescheduling logic
+//        if (repeat != null) {
+//            ScheduleItem repeatItem = new ScheduleItem();
+//            repeatItem.message = message;
+//            repeatItem.language = language;
+//            repeatItem.enabled = true;
+//            repeatItem.repeat = repeat;
+//
+//            long delayMillis = 0;
+//            if ("daily".equalsIgnoreCase(repeat)) {
+//                delayMillis = TimeUnit.DAYS.toMillis(1);
+//            } else if ("weekly".equalsIgnoreCase(repeat)) {
+//                delayMillis = TimeUnit.DAYS.toMillis(7);
+//            }
+//
+//            if (delayMillis > 0) {
+//                Log.d("ScheduleWorker", "🔁 Re-scheduling repeat task in " + (delayMillis / 60000) + " minutes");
+//                ScheduleWorker.scheduleItem(getApplicationContext(), repeatItem, delayMillis);
+//            }
+//        }
+//
+//        return Result.success();
+//    }
 
     private void speakMessage(String message, String language) {
         tts = new TextToSpeech(getApplicationContext(), status -> {
@@ -200,7 +319,7 @@ public class ScheduleWorker extends Worker {
 
     public static void scheduleItem(Context context, ScheduleItem item) {
         try {
-            Log.d("ScheduleWorker","In scheduleItem scheduling");
+            Log.d("ScheduleWorker", "In scheduleItem scheduling");
 
             SimpleDateFormat sdf = new SimpleDateFormat("h:mm a", Locale.ENGLISH);
             Date scheduledTime = sdf.parse(item.time);
@@ -220,31 +339,46 @@ public class ScheduleWorker extends Worker {
             }
 
             String today = new SimpleDateFormat("EEEE", Locale.ENGLISH).format(now.getTime());
-            boolean isToday = item.days.stream().anyMatch(d -> d.equalsIgnoreCase(today));
+            boolean isToday = item.days == null || item.days.stream().anyMatch(d -> d.equalsIgnoreCase(today));
             if (!isToday) return;
 
             Data data = new Data.Builder()
                     .putString("message", item.message)
-                    .putString("language", ConfigStore.getLanguage(context))
+                    .putString("language", item.language != null ? item.language : ConfigStore.getLanguage(context))
+                    .putString("repeat", item.repeat != null ? item.repeat : "none")
                     .build();
 
             OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(ScheduleWorker.class)
-                    .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS) // ✅ Only this, no expedited
+                    .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
                     .setInputData(data)
                     .build();
 
             WorkManager.getInstance(context).enqueue(workRequest);
 
             Log.d("ScheduleWorker", "✅ Scheduled '" + item.message + "' in " + (delayMillis / 60000) + " min");
-            Log.d("ScheduleWorker", "Scheduled '" + item.message + "' in " + (delayMillis / 60000) + " min");
-
-            Log.d("ScheduleWorker", "Message: " + item.message);
-            Log.d("ScheduleWorker", "Now: " + now.getTime());
-            Log.d("ScheduleWorker", "Scheduled: " + target.getTime());
-            Log.d("ScheduleWorker", "Delay (ms): " + delayMillis);
-            Log.d("ScheduleWorker", "Day Match: " + isToday);
         } catch (Exception e) {
             Log.e("ScheduleWorker", "Error scheduling task", e);
+        }
+    }
+    // Overloaded method to schedule using fixed delayMillis (used for self-rescheduling)
+    public static void scheduleItem(Context context, ScheduleItem item, long delayMillis) {
+        try {
+            Data data = new Data.Builder()
+                    .putString("message", item.message)
+                    .putString("language", item.language != null ? item.language : ConfigStore.getLanguage(context))
+                    .putString("repeat", item.repeat != null ? item.repeat : "none")
+                    .build();
+
+            OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(ScheduleWorker.class)
+                    .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
+                    .setInputData(data)
+                    .build();
+
+            WorkManager.getInstance(context).enqueue(workRequest);
+
+            Log.d("ScheduleWorker", "🔁 Self-rescheduled '" + item.message + "' in " + (delayMillis / 60000) + " min");
+        } catch (Exception e) {
+            Log.e("ScheduleWorker", "❌ Error in self-rescheduling task", e);
         }
     }
 
