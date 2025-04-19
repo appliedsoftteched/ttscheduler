@@ -30,7 +30,8 @@ public class ScheduleForegroundService extends Service {
         Notification notification = new NotificationCompat.Builder(this, CHANNEL_ID)
                 .setContentTitle("⏰ Scheduling Reminder")
                 .setContentText("Your reminder is being scheduled")
-                .setSmallIcon(R.drawable.ic_notification) // Replace with your icon
+                .setSmallIcon(R.drawable.ic_notification1)
+
                 .setPriority(NotificationCompat.PRIORITY_LOW)
                 .build();
 
