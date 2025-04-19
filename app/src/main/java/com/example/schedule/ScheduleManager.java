@@ -84,6 +84,7 @@ public class ScheduleManager {
     public static void parseAndSchedule(String json, Context context) {
         try {
             Gson gson = new Gson();
+            Log.d("ScheduleManager", "Json is "+json);
             ScheduleConfig config = gson.fromJson(json, ScheduleConfig.class);
 
             // ✅ Convert mealTimes to ScheduleItems (repeat = daily)

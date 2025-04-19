@@ -41,6 +41,16 @@
         android:layout_marginTop="8dp"
         android:layout_marginBottom="32dp" />
 
+    <!-- 🎤 Voice Scheduling Button -->
+    <Button
+        android:id="@+id/btnVoiceCommand"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎤 Schedule via Voice"
+        android:backgroundTint="#64B5F6"
+        android:textColor="#FFFFFF"
+        android:layout_marginBottom="16dp" />
+
     <!-- Spacer to push buttons to bottom -->
     <View
         android:layout_width="match_parent"

@@ -18,11 +18,10 @@ import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.work.WorkManager;
 
 import java.io.BufferedReader;
-import java.io.File;
-import java.io.FileOutputStream;
 import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.util.stream.Collectors;
+
 import android.util.Log;
 
 public class MainActivity extends AppCompatActivity {
@@ -34,7 +33,7 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
 
-        // ✅ Android 13+ notification permission check
+        // ✅ Android 13+ Notification permission
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU &&
                 checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
             requestPermissions(new String[]{Manifest.permission.POST_NOTIFICATIONS}, 101);
@@ -48,7 +47,6 @@ public class MainActivity extends AppCompatActivity {
         Button skipButton = findViewById(R.id.btn_skip);
         SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
         String existingJson = prefs.getString("schedules", null);
-
         if (existingJson != null && !existingJson.equals("[]") && !existingJson.isEmpty()) {
             skipButton.setVisibility(View.VISIBLE);
             skipButton.setOnClickListener(v -> {
@@ -58,65 +56,44 @@ public class MainActivity extends AppCompatActivity {
         } else {
             skipButton.setVisibility(View.GONE);
         }
+
+        // ✅ 🎤 Voice Command button
+        Button voiceButton = findViewById(R.id.btnVoiceCommand);
+        voiceButton.setOnClickListener(v -> {
+            Intent intent = new Intent(MainActivity.this, VoiceScheduleActivity.class);
+            startActivity(intent);
+        });
     }
 
+    private void handleFile(Uri uri) {
+        try {
+            InputStream inputStream = getContentResolver().openInputStream(uri);
+            BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
+            StringBuilder jsonBuilder = new StringBuilder();
+            String line;
+            while ((line = reader.readLine()) != null) {
+                jsonBuilder.append(line);
+            }
+            String jsonFromFile = jsonBuilder.toString();
 
-    //    private void handleFile(Uri uri) {
-//        try {
-//            Log.d(TAG,"Uploading");
-//            InputStream inputStream = getContentResolver().openInputStream(uri);
-//            String json = new BufferedReader(new InputStreamReader(inputStream)).lines().collect(Collectors.joining("\n"));
-//            File file = new File(getFilesDir(), "schedule.json");
-//            Log.d(TAG,"Uploading schedule json");
-//            try (FileOutputStream fos = new FileOutputStream(file)) {
-//                fos.write(json.getBytes());
-//            }
-//            ScheduleManager.parseAndSchedule(json, getApplicationContext());
-//
-//            Log.d(TAG,"Uploading Done and starting SchedListActivity");
-//            startActivity(new Intent(this, ScheduleListActivity.class));
-//            Log.d(TAG,"Uploading Done and Started SchedListActivity");
-//        } catch (Exception e) {
-//            Log.d(TAG,"Exception While uploaind");
-//            Toast.makeText(this, "Failed to process file", Toast.LENGTH_LONG).show();
-//        }
-//    }
-private void handleFile(Uri uri) {
-    try {
-        // Read JSON content from selected file
-        InputStream inputStream = getContentResolver().openInputStream(uri);
-        BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-        StringBuilder jsonBuilder = new StringBuilder();
-        String line;
-        while ((line = reader.readLine()) != null) {
-            jsonBuilder.append(line);
+            SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
+            prefs.edit().putString("schedules", jsonFromFile).apply();
+
+            WorkManager.getInstance(this).cancelAllWork();
+            ScheduleManager.parseAndSchedule(jsonFromFile, this);
+
+            startActivity(new Intent(this, ScheduleListActivity.class));
+            Toast.makeText(this, "✅ New schedule applied", Toast.LENGTH_SHORT).show();
+
+        } catch (Exception e) {
+            e.printStackTrace();
+            Toast.makeText(this, "❌ Failed to load file", Toast.LENGTH_LONG).show();
         }
-        String jsonFromFile = jsonBuilder.toString();
-
-        // ✅ Save new JSON
-        SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
-        prefs.edit().putString("schedules", jsonFromFile).apply();
-
-        // ✅ Cancel all old scheduled tasks
-        WorkManager.getInstance(this).cancelAllWork();
-
-        // ✅ Parse and reschedule new tasks
-        ScheduleManager.parseAndSchedule(jsonFromFile, this);
-
-        // ✅ Navigate to schedule view
-        startActivity(new Intent(this, ScheduleListActivity.class));
-
-        // ✅ User feedback
-        Toast.makeText(this, "✅ New schedule applied", Toast.LENGTH_SHORT).show();
-
-    } catch (Exception e) {
-        e.printStackTrace();
-        Toast.makeText(this, "❌ Failed to load file", Toast.LENGTH_LONG).show();
     }
-}
 
     @Override
-    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions, @NonNull int[] grantResults) {
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
         super.onRequestPermissionsResult(requestCode, permissions, grantResults);
         if (requestCode == 101 && (grantResults.length == 0 || grantResults[0] != PackageManager.PERMISSION_GRANTED)) {
             Toast.makeText(this, "Notification permission denied!", Toast.LENGTH_SHORT).show();

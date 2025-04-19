@@ -1,0 +1,48 @@
+<?xml version="1.0" encoding="utf-8"?>
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:orientation="vertical"
+    android:padding="16dp"
+    android:background="#ECEFF1">
+
+    <TextView
+        android:id="@+id/tvTitle"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎤 Voice Scheduler"
+        android:textAlignment="center"
+        android:textSize="20sp"
+        android:textStyle="bold"
+        android:textColor="#263238"
+        android:layout_marginBottom="16dp" />
+
+    <ScrollView
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:background="#FFFFFF"
+        android:padding="12dp">
+
+        <TextView
+            android:id="@+id/tvConversation"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:textColor="#37474F"
+            android:textSize="14sp"
+            android:scrollbars="vertical"
+            android:maxLines="15"
+            android:overScrollMode="always"
+            android:text="Welcome! Press the button below to start." />
+    </ScrollView>
+
+    <Button
+        android:id="@+id/btnStartVoice"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:text="🎙️ Start Speaking"
+        android:textColor="#FFFFFF"
+        android:backgroundTint="#42A5F5"
+        android:layout_marginTop="12dp" />
+
+</LinearLayout>
