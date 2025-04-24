@@ -5,6 +5,7 @@ import android.app.NotificationManager;
 import android.app.PendingIntent;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.media.AudioManager;
 import android.os.Build;
 import android.os.Handler;
@@ -21,6 +22,7 @@ import androidx.work.Worker;
 import androidx.work.WorkerParameters;
 
 
+import android.text.TextUtils;
 import android.util.Log;
 import android.widget.Toast;
 
@@ -40,6 +42,10 @@ import android.os.Handler;
 import android.os.Looper;
 import android.widget.Toast;
 import android.util.Log;
+
+import com.google.gson.Gson;
+
+import org.json.JSONObject;
 
 public class ScheduleWorker extends Worker {
 
@@ -142,7 +148,15 @@ public class ScheduleWorker extends Worker {
             }
         }
 
-        return Result.success();
+        Data output = new Data.Builder()
+                .putString("message", getInputData().getString("message"))
+                .putString("time", getInputData().getString("time"))
+                .putString("days", getInputData().getString("days"))
+                .build();
+
+        return Result.success(output);  // ✅ Output data now accessible
+
+//        return Result.success();
     }
 
 //    @NonNull
@@ -332,34 +346,49 @@ public class ScheduleWorker extends Worker {
             target.set(Calendar.DAY_OF_MONTH, now.get(Calendar.DAY_OF_MONTH));
 
             long delayMillis = target.getTimeInMillis() - now.getTimeInMillis();
-
             if (delayMillis < 0) {
-                Log.d("ScheduleWorker", "Skipping past schedule: " + item.message);
-                return;
+                delayMillis += 24 * 60 * 60 * 1000; // ⏰ schedule for next day
             }
 
+            // ✅ Check day validity
             String today = new SimpleDateFormat("EEEE", Locale.ENGLISH).format(now.getTime());
             boolean isToday = item.days == null || item.days.stream().anyMatch(d -> d.equalsIgnoreCase(today));
-            if (!isToday) return;
+            if (!isToday) {
+                Log.d("ScheduleWorker", "⏭️ Not scheduling since today is not in list: " + today);
+                return;
+            }
 
             Data data = new Data.Builder()
                     .putString("message", item.message)
                     .putString("language", item.language != null ? item.language : ConfigStore.getLanguage(context))
                     .putString("repeat", item.repeat != null ? item.repeat : "none")
+                    .putString("time", item.time)
+                    .putString("days", item.days != null ? TextUtils.join(",", item.days) : "")
                     .build();
 
             OneTimeWorkRequest workRequest = new OneTimeWorkRequest.Builder(ScheduleWorker.class)
                     .setInitialDelay(delayMillis, TimeUnit.MILLISECONDS)
                     .setInputData(data)
+                    .addTag("scheduled-task")                // ✅ For filtering live data
+                    .addTag("task-" + item.id)               // Optional: filter by individual ID
                     .build();
 
             WorkManager.getInstance(context).enqueue(workRequest);
 
+            // ✅ Save mapping for post-reboot recovery
+            SharedPreferences prefs = context.getSharedPreferences("scheduled", Context.MODE_PRIVATE);
+            String existing = prefs.getString("work_map", "{}");
+            JSONObject workMap = new JSONObject(existing);
+            workMap.put(workRequest.getId().toString(), new Gson().toJson(item));
+            prefs.edit().putString("work_map", workMap.toString()).apply();
+
             Log.d("ScheduleWorker", "✅ Scheduled '" + item.message + "' in " + (delayMillis / 60000) + " min");
+
         } catch (Exception e) {
-            Log.e("ScheduleWorker", "Error scheduling task", e);
+            Log.e("ScheduleWorker", "❌ Error scheduling task", e);
         }
     }
+
     // Overloaded method to schedule using fixed delayMillis (used for self-rescheduling)
     public static void scheduleItem(Context context, ScheduleItem item, long delayMillis) {
         try {

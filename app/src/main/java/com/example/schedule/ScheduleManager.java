@@ -4,17 +4,24 @@ import android.content.Context;
 
 import com.google.gson.Gson;
 
+import java.lang.reflect.Type;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.Locale;
+
+import android.content.SharedPreferences;
 import android.util.Log;
 import android.content.Context;
 import android.util.Log;
 
+import androidx.work.WorkManager;
+
 import com.google.gson.Gson;
+import com.google.gson.reflect.TypeToken;
 
 import java.text.SimpleDateFormat;
 import java.util.Calendar;
@@ -155,4 +162,68 @@ public class ScheduleManager {
     }
 
 
+        // ... other methods like parseAndSchedule
+
+    public static void deleteById(Context context, String itemId) {
+        // 🔹 Load from config (could be either list or object)
+        Log.d(TAG,"Deleting by id "+itemId);
+        SharedPreferences prefs = context.getSharedPreferences("config", Context.MODE_PRIVATE);
+        String json = prefs.getString("schedules", null);
+        Log.d(TAG,"Deleting by json "+json);
+        Gson gson = new Gson();
+
+        try {
+            List<ScheduleItem> updatedList = new ArrayList<>();
+
+            if (json != null && json.trim().startsWith("[")) {
+                // ✅ Legacy list format
+                Type listType = new TypeToken<List<ScheduleItem>>() {
+                }.getType();
+                List<ScheduleItem> list = gson.fromJson(json, listType);
+                for (ScheduleItem item : list) {
+                    if (!item.id.equals(itemId)) {
+                        updatedList.add(item);
+                    }
+                }
+                prefs.edit().putString("schedules", gson.toJson(updatedList)).apply();
+
+            } else {
+                // ✅ Config object format
+                ScheduleConfig config = gson.fromJson(json, ScheduleConfig.class);
+                if (config != null && config.schedules != null) {
+                    for (ScheduleItem item : config.schedules) {
+                        if (!item.id.equals(itemId)) {
+                            updatedList.add(item);
+                        }
+                    }
+                    config.schedules = updatedList;
+                    prefs.edit().putString("schedules", gson.toJson(config)).apply();
+                }
+            }
+
+        } catch (Exception e) {
+            Log.e("ScheduleManager", "❌ Failed to remove from config", e);
+        }
+
+        // 🔹 Remove from scheduled (work_map)
+        SharedPreferences scheduledPrefs = context.getSharedPreferences("scheduled", Context.MODE_PRIVATE);
+        String mapJson = scheduledPrefs.getString("work_map", "{}");
+
+        try {
+            Type mapType = new TypeToken<Map<String, String>>() {
+            }.getType();
+            Map<String, String> workMap = gson.fromJson(mapJson, mapType);
+            if (workMap != null) {
+                workMap.remove(itemId);
+                scheduledPrefs.edit().putString("work_map", gson.toJson(workMap)).apply();
+            }
+        } catch (Exception e) {
+            Log.e("ScheduleManager", "❌ Failed to remove from scheduled map", e);
+        }
+
+        // 🔹 Cancel WorkManager jobs
+        WorkManager.getInstance(context).cancelAllWorkByTag("task-" + itemId);
+        Log.d("ScheduleManager", "🗑️ Deleted task: " + itemId);
+
+    }
 }

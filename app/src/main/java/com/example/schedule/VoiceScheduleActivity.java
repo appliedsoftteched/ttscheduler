@@ -1,249 +1,270 @@
 package com.example.schedule;
 
+import android.Manifest;
 import android.app.Activity;
 import android.content.Intent;
 import android.content.SharedPreferences;
+import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
 import android.speech.RecognizerIntent;
 import android.speech.RecognitionListener;
 import android.speech.SpeechRecognizer;
 import android.util.Log;
-import android.view.View;
 import android.widget.Button;
 import android.widget.TextView;
 import android.widget.Toast;
 
-import androidx.annotation.Nullable;
+import androidx.annotation.NonNull;
+import androidx.core.app.ActivityCompat;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
 import java.text.SimpleDateFormat;
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Date;
-import java.util.List;
-import java.util.Locale;
-import java.util.UUID;
+import java.util.*;
 
 public class VoiceScheduleActivity extends Activity {
+
+    private static final String TAG = "VoiceScheduleActivity";
+    private static final int REQUEST_RECORD_AUDIO_PERMISSION = 200;
 
     private TextView tvConversation;
     private Button btnStartVoice;
     private SpeechRecognizer speechRecognizer;
     private Intent recognizerIntent;
-    private final ScheduleItem scheduleItem = new ScheduleItem();
-    private final String[] prompts = {"message", "time", "days", "repeat", "language"};
-    private int currentPromptIndex = 0;
+    private Handler handler = new Handler();
+    private boolean permissionToRecordAccepted = false;
+    private final String[] permissions = {Manifest.permission.RECORD_AUDIO};
+
     private final StringBuilder conversationLog = new StringBuilder();
-    private Handler timeoutHandler = new Handler();
+    private final ScheduleItem scheduleItem = new ScheduleItem();
+    private int currentPromptIndex = 0;
+
+    private final String[] promptOrder = {"message", "time", "days", "repeat", "language"};
 
     @Override
-    protected void onCreate(@Nullable Bundle savedInstanceState) {
+    protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_voice_schedule);
 
         tvConversation = findViewById(R.id.tvConversation);
         btnStartVoice = findViewById(R.id.btnStartVoice);
 
-        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        ActivityCompat.requestPermissions(this, permissions, REQUEST_RECORD_AUDIO_PERMISSION);
+
         recognizerIntent = new Intent(RecognizerIntent.ACTION_RECOGNIZE_SPEECH);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE_MODEL, RecognizerIntent.LANGUAGE_MODEL_FREE_FORM);
         recognizerIntent.putExtra(RecognizerIntent.EXTRA_LANGUAGE, Locale.getDefault());
+
+        speechRecognizer = SpeechRecognizer.createSpeechRecognizer(this);
+        speechRecognizer.setRecognitionListener(new VoiceListener());
 
         btnStartVoice.setOnClickListener(v -> startConversation());
     }
 
     private void startConversation() {
+        scheduleItem.id = UUID.randomUUID().toString();
         conversationLog.setLength(0);
         currentPromptIndex = 0;
-        scheduleItem.id = UUID.randomUUID().toString();
-        askNextPrompt();
+        promptNextMissing();
     }
 
-    private void askNextPrompt() {
-        if (currentPromptIndex >= prompts.length) {
-            saveAndSchedule();
+    private void promptNextMissing() {
+        if (allFieldsPresent()) {
+            finalizeSchedule();
             return;
         }
-        String prompt = prompts[currentPromptIndex];
-        String question = getPromptQuestion(prompt);
-        appendToConversation("🤖 " + question);
-        timeoutHandler.postDelayed(this::promptTimeout, 10000);
-        listenForSpeech();
+
+        String currentPrompt = promptOrder[currentPromptIndex];
+        String question = getPromptQuestion(currentPrompt);
+        speak(question);
+        handler.postDelayed(() -> speechRecognizer.startListening(recognizerIntent), 1200);
     }
 
-    private String getPromptQuestion(String prompt) {
-        switch (prompt) {
+    private boolean allFieldsPresent() {
+        return scheduleItem.message != null &&
+                scheduleItem.time != null &&
+                scheduleItem.days != null &&
+                scheduleItem.repeat != null &&
+                scheduleItem.language != null;
+    }
+
+    private String getPromptQuestion(String field) {
+        switch (field) {
             case "message": return "What should I remind you about?";
-            case "time": return "What time should I remind you?";
-            case "days": return "Which days should I repeat this? Say days like Monday, Tuesday.";
-            case "repeat": return "Should this be repeated daily or weekly?";
+            case "time": return "At what time?";
+            case "days": return "Which days should I repeat this?";
+            case "repeat": return "Should it repeat daily or weekly?";
             case "language": return "Should I speak in English or Hindi?";
             default: return "Please respond.";
         }
     }
 
-    private void promptTimeout() {
-        appendToConversation("⚠️ I’m still waiting for your answer...");
+    private void speak(String line) {
+        conversationLog.append("🤖 ").append(line).append("\n");
+        tvConversation.setText(conversationLog.toString());
     }
 
-    private void listenForSpeech() {
-        speechRecognizer.setRecognitionListener(new RecognitionListener() {
-            @Override public void onReadyForSpeech(Bundle params) {}
-            @Override public void onBeginningOfSpeech() {
-                timeoutHandler.removeCallbacksAndMessages(null);
-            }
-            @Override public void onRmsChanged(float rmsdB) {}
-            @Override public void onBufferReceived(byte[] buffer) {}
-            @Override public void onEndOfSpeech() {}
-            @Override public void onError(int error) {
-                appendToConversation("⚠️ Didn't catch that. Please try again.");
-                askNextPrompt();
-            }
+    private void processSpokenText(String spoken) {
+        String field = promptOrder[currentPromptIndex];
+        boolean valid = false;
 
-            @Override
-            public void onResults(Bundle results) {
-                timeoutHandler.removeCallbacksAndMessages(null);
-                ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
-                if (matches != null && !matches.isEmpty()) {
-                    String spoken = matches.get(0);
-                    appendToConversation("🗣️ You: " + spoken);
-                    if (!handleSpokenInput(spoken)) {
-                        appendToConversation("⚠️ That doesn't seem right. Please try again.");
-                        return;
-                    }
-                    currentPromptIndex++;
-                    askNextPrompt();
-                } else {
-                    appendToConversation("⚠️ I didn't hear anything.");
-                    askNextPrompt();
-                }
-            }
-
-            @Override public void onPartialResults(Bundle partialResults) {}
-            @Override public void onEvent(int eventType, Bundle params) {}
-        });
-
-        speechRecognizer.startListening(recognizerIntent);
-    }
-
-    private boolean handleSpokenInput(String spoken) {
-        String currentPrompt = prompts[currentPromptIndex];
-
-        switch (currentPrompt) {
+        switch (field) {
             case "message":
-                if (spoken.trim().length() < 2) return false;
-                scheduleItem.message = spoken;
-                return true;
+                if (spoken.length() > 1) {
+                    scheduleItem.message = spoken;
+                    valid = true;
+                }
+                break;
             case "time":
                 try {
-                    String cleanedTime = spoken.trim()
-                            .replaceAll("(?i)[.]", "")
-                            .replaceAll("(?i)a\\s*m", "AM")
-                            .replaceAll("(?i)p\\s*m", "PM")
-                            .replaceAll("(?i)am", "AM")
-                            .replaceAll("(?i)pm", "PM");
-
-                    SimpleDateFormat spokenFormat = new SimpleDateFormat("h:mm a", Locale.ENGLISH);
-                    spokenFormat.setLenient(false);
-                    Date date = spokenFormat.parse(cleanedTime);
-                    SimpleDateFormat outputFormat = new SimpleDateFormat("h:mm a", Locale.ENGLISH);
-                    scheduleItem.time = outputFormat.format(date);
-                    return true;
+                    String cleaned = spoken.replaceAll("[.]", "")
+                            .replaceAll("a\\s*m", "AM").replaceAll("p\\s*m", "PM")
+                            .replaceAll("am", "AM").replaceAll("pm", "PM");
+                    Date parsed = new SimpleDateFormat("h:mm a", Locale.ENGLISH).parse(cleaned);
+                    scheduleItem.time = new SimpleDateFormat("h:mm a", Locale.ENGLISH).format(parsed);
+                    valid = true;
                 } catch (Exception e) {
-                    Log.e("VoiceSchedule", "Time parse failed for: " + spoken);
-                    return false;
+                    Log.e(TAG, "❌ Time parsing failed: " + spoken, e);
                 }
+                break;
             case "days":
-                String[] tokens = spoken.split("[\\s,]+");
-                List<String> parsedDays = new ArrayList<>();
-                for (String token : tokens) {
+                List<String> days = new ArrayList<>();
+                for (String token : spoken.split("[\\s,]+")) {
                     String day = token.trim().toLowerCase();
                     if (Arrays.asList("monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday").contains(day)) {
-                        parsedDays.add(day.substring(0, 1).toUpperCase() + day.substring(1));
+                        days.add(Character.toUpperCase(day.charAt(0)) + day.substring(1));
                     }
                 }
-                if (parsedDays.isEmpty()) return false;
-                scheduleItem.days = parsedDays;
-                return true;
+                if (!days.isEmpty()) {
+                    scheduleItem.days = days;
+                    valid = true;
+                }
+                break;
             case "repeat":
-                if (spoken.toLowerCase().contains("week")) {
-                    scheduleItem.repeat = "weekly";
-                } else if (spoken.toLowerCase().contains("day")) {
+                if (spoken.toLowerCase().contains("daily")) {
                     scheduleItem.repeat = "daily";
-                } else {
-                    return false;
+                    valid = true;
+                } else if (spoken.toLowerCase().contains("weekly")) {
+                    scheduleItem.repeat = "weekly";
+                    valid = true;
                 }
-                return true;
+                break;
             case "language":
-                if (spoken.toLowerCase().contains("hindi")) {
-                    scheduleItem.language = "hindi";
-                } else if (spoken.toLowerCase().contains("english")) {
+                if (spoken.toLowerCase().contains("english")) {
                     scheduleItem.language = "english";
-                } else {
-                    return false;
+                    valid = true;
+                } else if (spoken.toLowerCase().contains("hindi")) {
+                    scheduleItem.language = "hindi";
+                    valid = true;
                 }
-                return true;
-            default:
-                return false;
+                break;
         }
+
+        if (valid) {
+            conversationLog.append("🗣️ You: ").append(spoken).append("\n");
+            currentPromptIndex++;
+        } else {
+            conversationLog.append("⚠️ Didn't understand that. Please try again.\n");
+        }
+        tvConversation.setText(conversationLog.toString());
+        promptNextMissing();
     }
 
-    private void saveAndSchedule() {
+    private void finalizeSchedule() {
         scheduleItem.enabled = true;
 
         SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
         String json = prefs.getString("schedules", null);
 
-        ScheduleConfig config;
+        Gson gson = new Gson();
+        ScheduleConfig config = new ScheduleConfig();
+        config.language = "english"; // Default
+        config.schedules = new ArrayList<>();
+
         try {
-            if (json != null && json.trim().startsWith("[")) {
-                Type listType = new TypeToken<List<ScheduleItem>>() {}.getType();
-                List<ScheduleItem> legacyList = new Gson().fromJson(json, listType);
-                config = new ScheduleConfig();
-                config.language = "english";
-                config.schedules = legacyList;
-            } else {
-                config = json != null ? new Gson().fromJson(json, ScheduleConfig.class) : new ScheduleConfig();
+            if (json != null && json.trim().startsWith("{")) {
+                config = gson.fromJson(json, ScheduleConfig.class);
+                if (config.schedules == null) config.schedules = new ArrayList<>();
+            } else if (json != null && json.trim().startsWith("[")) {
+                // Handle legacy format (array only)
+                List<ScheduleItem> legacyList = gson.fromJson(json, new TypeToken<List<ScheduleItem>>() {}.getType());
+                config.schedules.addAll(legacyList);
             }
         } catch (Exception e) {
-            Log.e("VoiceSchedule", "❌ Failed to parse existing JSON, creating new config", e);
-            config = new ScheduleConfig();
+            Log.e(TAG, "Failed to parse existing config", e);
         }
 
-        if (config.schedules == null) config.schedules = new ArrayList<>();
+        // Add new item
         config.schedules.add(scheduleItem);
 
-        String updatedJson = new Gson().toJson(config);
+        String updatedJson = gson.toJson(config);
         prefs.edit().putString("schedules", updatedJson).apply();
 
-        Intent serviceIntent = new Intent(this, ScheduleForegroundService.class);
-        serviceIntent.putExtra("json", updatedJson);
-        startService(serviceIntent);
+        // ✅ Schedule it using manager
+        ScheduleManager.parseAndSchedule(updatedJson, getApplicationContext());
 
-        appendToConversation("✅ Your task has been scheduled successfully!");
-        Toast.makeText(getApplicationContext(), "✅ Scheduled and running in background", Toast.LENGTH_SHORT).show();
+        conversationLog.append("✅ Task scheduled successfully!\n");
+        tvConversation.setText(conversationLog.toString());
 
-        // ✅ Slight delay to avoid DeadObjectException
         new Handler().postDelayed(() -> {
             startActivity(new Intent(this, ScheduleListActivity.class));
             finish();
-        }, 800);
+        }, 1000);
     }
 
-    private void appendToConversation(String line) {
-        conversationLog.append(line).append("\n");
-        tvConversation.setText(conversationLog.toString());
+    private class VoiceListener implements RecognitionListener {
+        @Override public void onReadyForSpeech(Bundle params) {
+            Log.d(TAG, "🎤 Ready");
+        }
+
+        @Override public void onBeginningOfSpeech() {
+            Log.d(TAG, "🎤 Started");
+            handler.removeCallbacksAndMessages(null);
+        }
+
+        @Override public void onError(int error) {
+            Log.e(TAG, "❌ Error Listening code is " + error);
+            conversationLog.append("⚠️ Didn't catch that. Please repeat.\n");
+            tvConversation.setText(conversationLog.toString());
+            handler.postDelayed(() -> promptNextMissing(), 1200);
+        }
+
+        @Override public void onResults(Bundle results) {
+            ArrayList<String> matches = results.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION);
+            if (matches != null && !matches.isEmpty()) {
+                processSpokenText(matches.get(0));
+            } else {
+                conversationLog.append("⚠️ Didn't hear anything.\n");
+                tvConversation.setText(conversationLog.toString());
+                promptNextMissing();
+            }
+        }
+
+        @Override public void onRmsChanged(float rmsdB) {}
+        @Override public void onBufferReceived(byte[] buffer) {}
+        @Override public void onEndOfSpeech() {}
+        @Override public void onPartialResults(Bundle partialResults) {}
+        @Override public void onEvent(int eventType, Bundle params) {}
     }
 
     @Override
     protected void onDestroy() {
-        if (speechRecognizer != null) {
-            speechRecognizer.destroy();
-        }
+        if (speechRecognizer != null) speechRecognizer.destroy();
         super.onDestroy();
+    }
+
+    @Override
+    public void onRequestPermissionsResult(int requestCode, @NonNull String[] permissions,
+                                           @NonNull int[] grantResults) {
+        if (requestCode == REQUEST_RECORD_AUDIO_PERMISSION) {
+            permissionToRecordAccepted = grantResults.length > 0 && grantResults[0] == PackageManager.PERMISSION_GRANTED;
+            if (!permissionToRecordAccepted) {
+                Toast.makeText(this, "Microphone permission is required", Toast.LENGTH_SHORT).show();
+                finish();
+            }
+        }
     }
 }

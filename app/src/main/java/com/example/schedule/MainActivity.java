@@ -7,6 +7,7 @@ import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
+import android.provider.Settings;
 import android.view.View;
 import android.widget.Button;
 import android.widget.Toast;
@@ -42,23 +43,24 @@ public class MainActivity extends AppCompatActivity {
         filePickerLauncher = registerForActivityResult(new ActivityResultContracts.GetContent(), this::handleFile);
 
         Button uploadButton = findViewById(R.id.uploadButton);
-        uploadButton.setOnClickListener(v -> filePickerLauncher.launch("application/json"));
-
         Button skipButton = findViewById(R.id.btn_skip);
+        Button voiceButton = findViewById(R.id.btnVoiceCommand);
+
         SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
-        String existingJson = prefs.getString("schedules", null);
-        if (existingJson != null && !existingJson.equals("[]") && !existingJson.isEmpty()) {
+        boolean hasUploaded = prefs.getBoolean("hasUploadedJson", false);
+
+        if (hasUploaded) {
             skipButton.setVisibility(View.VISIBLE);
-            skipButton.setOnClickListener(v -> {
-                Intent intent = new Intent(MainActivity.this, ScheduleListActivity.class);
-                startActivity(intent);
-            });
         } else {
             skipButton.setVisibility(View.GONE);
         }
 
-        // ✅ 🎤 Voice Command button
-        Button voiceButton = findViewById(R.id.btnVoiceCommand);
+        skipButton.setOnClickListener(v -> {
+            startActivity(new Intent(MainActivity.this, ScheduleListActivity.class));
+        });
+
+        uploadButton.setOnClickListener(v -> filePickerLauncher.launch("application/json"));
+
         voiceButton.setOnClickListener(v -> {
             Intent intent = new Intent(MainActivity.this, VoiceScheduleActivity.class);
             startActivity(intent);
@@ -69,15 +71,13 @@ public class MainActivity extends AppCompatActivity {
         try {
             InputStream inputStream = getContentResolver().openInputStream(uri);
             BufferedReader reader = new BufferedReader(new InputStreamReader(inputStream));
-            StringBuilder jsonBuilder = new StringBuilder();
-            String line;
-            while ((line = reader.readLine()) != null) {
-                jsonBuilder.append(line);
-            }
-            String jsonFromFile = jsonBuilder.toString();
+            String jsonFromFile = reader.lines().collect(Collectors.joining());
 
             SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
-            prefs.edit().putString("schedules", jsonFromFile).apply();
+            prefs.edit()
+                    .putString("schedules", jsonFromFile)
+                    .putBoolean("hasUploadedJson", true)  // ✅ Mark JSON upload successful
+                    .apply();
 
             WorkManager.getInstance(this).cancelAllWork();
             ScheduleManager.parseAndSchedule(jsonFromFile, this);
@@ -99,4 +99,27 @@ public class MainActivity extends AppCompatActivity {
             Toast.makeText(this, "Notification permission denied!", Toast.LENGTH_SHORT).show();
         }
     }
+
+    @Override
+    protected void onResume() {
+        super.onResume();
+
+        // Refresh Skip button visibility after returning from other activities
+        Button skipButton = findViewById(R.id.btn_skip);
+        SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
+        boolean hasUploaded = prefs.getBoolean("hasUploadedJson", false);
+
+        if (hasUploaded) {
+            skipButton.setVisibility(View.VISIBLE);
+        } else {
+            skipButton.setVisibility(View.GONE);
+        }
+
+//        Intent intent = new Intent(Settings.ACTION_INPUT_METHOD_SETTINGS);
+//        startActivity(intent);
+
+        //SpeechDiagnosticsHelper.runDiagnostics(this);
+
+    }
+
 }

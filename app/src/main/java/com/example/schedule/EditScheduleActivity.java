@@ -38,7 +38,7 @@ public class EditScheduleActivity extends AppCompatActivity {
         languageEdit = findViewById(R.id.editLanguage);
         Button saveBtn = findViewById(R.id.btnSave);
 
-        taskId = getIntent().getStringExtra("id");
+        taskId = getIntent().getStringExtra("item_id");
 
         SharedPreferences prefs = getSharedPreferences("config", MODE_PRIVATE);
         String scheduleJson = prefs.getString("schedules", "[]");

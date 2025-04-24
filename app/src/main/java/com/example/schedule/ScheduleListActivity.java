@@ -1,209 +1,183 @@
 package com.example.schedule;
 
+import android.app.AlertDialog;
 import android.content.Context;
 import android.content.Intent;
+import android.content.SharedPreferences;
 import android.graphics.Color;
-import android.graphics.Typeface;
 import android.os.Bundle;
 import android.text.TextUtils;
+import android.util.Log;
 import android.view.View;
-import android.view.ViewGroup;
-import android.widget.ArrayAdapter;
 import android.widget.Button;
 import android.widget.LinearLayout;
-import android.widget.ListView;
-import android.util.Log;
+import android.widget.TableLayout;
+import android.widget.TableRow;
+import android.widget.TextView;
 
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
 import androidx.annotation.Nullable;
-import androidx.appcompat.app.AppCompatActivity;
-import androidx.work.WorkManager;
 
 import com.google.gson.Gson;
 import com.google.gson.reflect.TypeToken;
 
 import java.lang.reflect.Type;
-import java.util.ArrayList;
 import java.util.List;
-import android.util.Log;
-import android.widget.TableLayout;
-import android.widget.TableRow;
-import android.widget.TextView;
 
-public class ScheduleListActivity extends AppCompatActivity {
+public class ScheduleListActivity extends android.app.Activity {
     private static final String TAG = "ScheduleListActivity";
-    private ActivityResultLauncher<Intent> editLauncher;
 
-//    @Override
-//    protected void onCreate(Bundle savedInstanceState) {
-//        super.onCreate(savedInstanceState);
-//        setContentView(R.layout.activity_schedule_list);
-//        Log.d(TAG,"Starting ScheduleListActivity");
-//        ListView listView = findViewById(R.id.scheduleList);
-//        String json = getSharedPreferences("config", MODE_PRIVATE).getString("schedules", "[]");
-//        Log.d(TAG,"Starting ScheduleListActivity got JSON as "+json);
-//        try {
-//            Type listType = new TypeToken<List<ScheduleItem>>() {}.getType();
-//            List<ScheduleItem> list = new Gson().fromJson(json, listType);
-//
-//            if (list == null || list.isEmpty()) {
-//                Log.e("ScheduleListActivity", "Parsed list is empty or null");
-//            }
-//
-//            ArrayAdapter<String> adapter = new ArrayAdapter<>(
-//                    this,
-//                    android.R.layout.simple_list_item_1,
-//                    list.stream().map(i -> i.time + " - " + i.message).toArray(String[]::new)
-//            );
-//            listView.setAdapter(adapter);
-//
-//        } catch (Exception e) {
-//            Log.e("ScheduleListActivity", "JSON parse or adapter error", e);
-//        }
-//    }
-@Override
-protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
-    setContentView(R.layout.activity_schedule_list);
+    @Override
+    protected void onCreate(@Nullable Bundle savedInstanceState) {
+        super.onCreate(savedInstanceState);
+        setContentView(R.layout.activity_schedule_list);
+    }
 
-    editLauncher = registerForActivityResult(
-            new ActivityResultContracts.StartActivityForResult(),
-            result -> {
-                if (result.getResultCode() == RESULT_OK) {
-                    recreate(); // ✅ Refresh UI after edit
-                }
-            });
+    @Override
+    protected void onResume() {
+        super.onResume();
+        loadScheduleList();
+    }
 
-    Log.d("ScheduleListActivity", "Starting ScheduleListActivity");
+    private void loadScheduleList() {
+        TableLayout tableLayout = findViewById(R.id.scheduleTable);
+        tableLayout.removeAllViews(); // Clear old views
 
-    String json = getSharedPreferences("config", MODE_PRIVATE).getString("schedules", "[]");
-    Log.d("ScheduleListActivity", "Got JSON: " + json);
+        // ✅ Add header row
+        TableRow headerRow = new TableRow(this);
+        headerRow.setBackgroundColor(Color.parseColor("#ECEFF1"));
 
-    try {
-        Type listType = new TypeToken<List<ScheduleItem>>() {}.getType();
-        List<ScheduleItem> list = new Gson().fromJson(json, listType);
+        addHeaderText(headerRow, "Actions", "🛠️");
+        addHeaderText(headerRow, "Time", "⏱");
+        addHeaderText(headerRow, "Days", "📅");
+        addHeaderText(headerRow, "Message", "💬");
 
-        if (list == null || list.isEmpty()) {
-            Log.e("ScheduleListActivity", "❌ Parsed list is empty or null");
+        tableLayout.addView(headerRow);
+
+        SharedPreferences prefs = getSharedPreferences("config", Context.MODE_PRIVATE);
+        String json = prefs.getString("schedules", null);
+
+        if (json == null || json.trim().isEmpty()) {
+            Log.w(TAG, "⚠️ No schedules found in config");
             return;
         }
 
-        TableLayout tableLayout = findViewById(R.id.scheduleTable);
+        try {
+            Gson gson = new Gson();
+            ScheduleConfig config;
 
-        for (ScheduleItem item : list) {
-            TableRow row = new TableRow(this);
+            // 👇 Handle both raw list and wrapped config object
+            if (json.trim().startsWith("{")) {
+                config = gson.fromJson(json, ScheduleConfig.class);
+            } else {
+                List<ScheduleItem> list = gson.fromJson(json, new TypeToken<List<ScheduleItem>>() {}.getType());
+                config = new ScheduleConfig();
+                config.schedules = list;
+            }
 
-            // Vertical layout for time and buttons
-            LinearLayout timeLayout = new LinearLayout(this);
-            timeLayout.setOrientation(LinearLayout.VERTICAL);
-            timeLayout.setPadding(8, 8, 8, 8);
+            if (config.schedules == null || config.schedules.isEmpty()) {
+                Log.w(TAG, "⚠️ No tasks in 'schedules'");
+                return;
+            }
 
-            TextView timeView = new TextView(this);
-            timeView.setText(item.time);
-            timeView.setTextColor(Color.parseColor("#37474F"));
-            timeView.setPadding(8, 8, 8, 4);
+            for (ScheduleItem item : config.schedules) {
+                TableRow row = new TableRow(this);
+                row.setPadding(8, 8, 8, 8);
 
-            // Edit Button
-            Button editButton = new Button(this);
-            editButton.setText("Edit");
-            editButton.setTextSize(12f);
-            editButton.setTextColor(Color.WHITE);
-            editButton.setBackgroundResource(R.drawable.button_shadow);
-            LinearLayout.LayoutParams btnParams = new LinearLayout.LayoutParams(150, 80);
-            btnParams.setMargins(0, 8, 0, 8);
-            editButton.setLayoutParams(btnParams);
+                // Time
+                LinearLayout timeLayout = new LinearLayout(this);
+                timeLayout.setOrientation(LinearLayout.VERTICAL);
 
-            editButton.setOnClickListener(v -> {
-                Intent intent = new Intent(this, EditScheduleActivity.class);
-                intent.putExtra("id", item.id);
-                editLauncher.launch(intent);
-            });
+                TextView timeView = new TextView(this);
+                timeView.setText(item.time);
+                timeView.setTextColor(Color.parseColor("#37474F"));
+                timeView.setPadding(8, 8, 8, 4);
+                timeLayout.addView(timeView);
 
-            // Delete Button
-            Button deleteButton = new Button(this);
-            deleteButton.setText("Del");
-            deleteButton.setTextSize(12f);
-            deleteButton.setTextColor(Color.WHITE);
-            deleteButton.setBackgroundResource(R.drawable.button_shadow);
-            deleteButton.setLayoutParams(btnParams);
+                // Days
+                TextView daysView = new TextView(this);
+                daysView.setText(item.days != null ? TextUtils.join("\n", item.days) : "-");
+                daysView.setPadding(8, 8, 8, 8);
+                daysView.setTextColor(Color.parseColor("#37474F"));
 
-            deleteButton.setOnClickListener(v -> {
-                Context context = ScheduleListActivity.this;
+                // Message with wrap
+                TextView messageView = new TextView(this);
+                messageView.setText(item.message);
+                messageView.setPadding(8, 8, 8, 8);
+                messageView.setTextColor(Color.parseColor("#37474F"));
+                messageView.setMaxWidth(400); // 🧩 Adjust as needed
+                messageView.setSingleLine(false);
 
-                // Filter the item by ID
-                List<ScheduleItem> updatedList = new ArrayList<>();
-                for (ScheduleItem i : list) {
-                    if (!i.id.equals(item.id)) {
-                        updatedList.add(i);
-                    }
-                }
+                // Buttons - Vertical
+                LinearLayout buttonLayout = new LinearLayout(this);
+                buttonLayout.setOrientation(LinearLayout.VERTICAL);
+                buttonLayout.setPadding(8, 8, 8, 8);
 
-                // Save updated list
-                String updatedJson = new Gson().toJson(updatedList);
-                context.getSharedPreferences("config", MODE_PRIVATE)
-                        .edit()
-                        .putString("schedules", updatedJson)
-                        .apply();
+                Button btnEdit = new Button(this);
+                btnEdit.setText("Edit");
+                btnEdit.setOnClickListener(v -> {
+                    Intent intent = new Intent(this, EditScheduleActivity.class);
+                    intent.putExtra("item_id", item.id);
+                    startActivity(intent);
+                });
+                buttonLayout.addView(btnEdit);
 
-                // Re-schedule everything
-                WorkManager.getInstance(context).cancelAllWork();
-                ScheduleManager.parseAndSchedule(updatedJson, context);
+                Button btnDelete = new Button(this);
+                btnDelete.setText("Delete");
+                btnDelete.setOnClickListener(v -> {
+                    new AlertDialog.Builder(this)
+                            .setTitle("Delete Task")
+                            .setMessage("Are you sure you want to delete this task?")
+                            .setPositiveButton("Yes", (dialog, which) -> {
+                                ScheduleManager.deleteById(this, item.id);
+                                loadScheduleList(); // Refresh UI
+                            })
+                            .setNegativeButton("No", null)
+                            .show();
+                });
+                buttonLayout.addView(btnDelete);
 
-                recreate(); // ✅ Refresh UI
-            });
+                row.addView(buttonLayout);
+                row.addView(timeLayout);
+                row.addView(daysView);
+                row.addView(messageView);
 
+                tableLayout.addView(row);
 
-            // Assemble column
-            timeLayout.addView(timeView);
-            timeLayout.addView(editButton);
-            timeLayout.addView(deleteButton);
+                // Divider
+                View divider = new View(this);
+                TableLayout.LayoutParams params = new TableLayout.LayoutParams(
+                        TableLayout.LayoutParams.MATCH_PARENT, 2);
+                divider.setLayoutParams(params);
+                divider.setBackgroundColor(Color.parseColor("#B0BEC5"));
+                tableLayout.addView(divider);
+            }
 
-            // Days Column
-            TextView daysView = new TextView(this);
-            daysView.setText(item.days != null ? TextUtils.join("\n", item.days) : "-");
-            daysView.setPadding(8, 8, 8, 8);
-            daysView.setTextColor(Color.parseColor("#37474F"));
-
-            // Message Column
-            TextView messageView = new TextView(this);
-            messageView.setText(item.message);
-            messageView.setPadding(8, 8, 8, 8);
-            messageView.setTextColor(Color.parseColor("#37474F"));
-
-            // Assemble table row
-            row.addView(timeLayout);
-            row.addView(daysView);
-            row.addView(messageView);
-
-            tableLayout.addView(row);
-
-            // Divider
-            View divider = new View(this);
-            TableLayout.LayoutParams params = new TableLayout.LayoutParams(
-                    TableLayout.LayoutParams.MATCH_PARENT, 2);
-            divider.setLayoutParams(params);
-            divider.setBackgroundColor(Color.parseColor("#B0BEC5"));
-            tableLayout.addView(divider);
-
-            Log.d("ScheduleListActivity", "✔️ Added row with ID: " + item.id);
+        } catch (Exception e) {
+            Log.e("ScheduleListActivity", "❌ Failed to parse schedule config", e);
         }
-
-    } catch (Exception e) {
-        Log.e("ScheduleListActivity", "❌ JSON parse or table setup error", e);
     }
-}
 
+    private void addHeaderText(TableRow headerRow, String label, String iconUnicode) {
+        LinearLayout container = new LinearLayout(this);
+        container.setOrientation(LinearLayout.HORIZONTAL);
+        container.setPadding(12, 12, 12, 12);
 
+        // Icon
+        TextView iconView = new TextView(this);
+        iconView.setText(iconUnicode);  // example: ⏱, 🗓️ etc.
+        iconView.setTextSize(12);
+        iconView.setTextColor(Color.BLACK);
+        iconView.setPadding(0, 0, 8, 0); // space between icon and label
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, @Nullable Intent data) {
-        super.onActivityResult(requestCode, resultCode, data);
+        // Label
+        TextView labelView = new TextView(this);
+        labelView.setText(label);
+        labelView.setTextSize(16);
+        labelView.setTextColor(Color.BLACK);
 
-        if (requestCode == 1001 && resultCode == RESULT_OK) {
-            // ✅ Refresh screen after edit
-            recreate();
-        }
+        container.addView(iconView);
+        container.addView(labelView);
+        headerRow.addView(container);
     }
 
 }
