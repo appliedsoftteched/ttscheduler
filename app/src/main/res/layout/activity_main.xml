@@ -14,7 +14,7 @@
         android:layout_height="96dp"
         android:layout_gravity="center_horizontal"
         android:src="@mipmap/tts_schedule"
-        app:tint="#546E7A"
+
         android:layout_marginTop="48dp" />
 
     <!-- Title -->
@@ -22,19 +22,19 @@
         android:id="@+id/tvTitle"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:text="TTS Scheduler"
-        android:textSize="22sp"
+        android:text="My Schedule"
+        android:textSize="20sp"
         android:textStyle="bold"
         android:textColor="#37474F"
         android:layout_gravity="center_horizontal"
-        android:layout_marginTop="12dp" />
+        android:layout_marginTop="10dp" />
 
     <!-- Subtitle -->
     <TextView
         android:id="@+id/tvSubtitle"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="Upload a JSON file to schedule text-to-speech reminders."
+        android:text="Upload schedule with JSON File"
         android:textSize="15sp"
         android:textColor="#607D8B"
         android:gravity="center"
@@ -46,7 +46,7 @@
         android:id="@+id/btnVoiceCommand"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:text="🎤 Schedule via Voice"
+        android:text="🎤 Schedule"
         android:backgroundTint="#64B5F6"
         android:textColor="#FFFFFF"
         android:layout_marginBottom="16dp" />
